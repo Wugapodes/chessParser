@@ -6,108 +6,96 @@
  * Date: 13/03/2017
  * Time: 19:00
  */
-class JsonToPgnParser
-{
+class JsonToPgnParser {
 
-    private $games;
+	private $games;
 
-    public function __construct()
-    {
-        $this->games = array();
-    }
+	public function __construct() {
+		$this->games = [];
+	}
 
-    /**
-     * @param string $jsonString
-     */
-    public function addGame($jsonString)
-    {
-        $this->addGameObject(json_decode($jsonString, true));
-    }
+	/**
+	 * @param string $jsonString
+	 */
+	public function addGame( $jsonString ) {
+		$this->addGameObject( json_decode( $jsonString, true ) );
+	}
 
-    /**
-     * @param array $json
-     */
-    public function addGameObject($json)
-    {
-        $this->games[] = $json;
-    }
+	/**
+	 * @param array $json
+	 */
+	public function addGameObject( $json ) {
+		$this->games[] = $json;
+	}
 
+	public function asPgn() {
+		$ret = [];
+		foreach ( $this->games as $game ) {
+			$ret[] = $this->gameToPgn( $game );
 
-    public function asPgn()
-    {
-        $ret = array();
-        foreach ($this->games as $game) {
-            $ret[] = $this->gameToPgn($game);
+		}
+		return implode( "\n\n", $ret );
+	}
 
-        }
-        return implode("\n\n", $ret);
-    }
+	private function gameToPgn( $game ) {
+		$moves = [];
+		$metadata = [];
 
-    private function gameToPgn($game)
-    {
+		foreach ( $game as $key => $value ) {
+			switch ( $key ) {
+				case "moves":
+					$moves = $this->movesToPgn( $value, $this->getStartMove( $game ) );
+					break;
+				default:
+					if ( is_string( $value ) ) {
+						$metadata[] = '[' . ucfirst( $key ) . ' "' . $value . '"]';
+					}
+			}
 
-        $moves = array();
-        $metadata = array();
+		}
+		return implode( "\n", $metadata ) . "\n\n" . $moves;
+	}
 
-        foreach ($game as $key => $value) {
-            switch ($key) {
-                case "moves":
-                    $moves = $this->movesToPgn($value, $this->getStartMove($game));
-                    break;
-                default:
-                    if (is_string($value)) {
-                        $metadata[] = '[' . ucfirst($key) . ' "' . $value . '"]';
-                    }
-            }
+	private function getStartMove( $game ) {
+		if ( empty( $game["fen"] ) ) { return 1;
+		}
+		$tokens = explode( " ", $game["fen"] );
+		$ret = array_pop( $tokens );
+		if ( $tokens[1] == "b" ) { $ret += 0.5;
+		}
+		return $ret;
+	}
 
+	private function movesToPgn( $moves, $startMove ) {
+		$ret = [];
 
-        }
-        return implode("\n", $metadata) . "\n\n" . $moves;
+		if ( $startMove != floor( $startMove ) ) {
+			$ret[] = floor( $startMove ) . "...";
+		}
 
-    }
+		foreach ( $moves as $move ) {
+			if ( !empty( $move["m"] ) ) {
+				if ( $startMove == floor( $startMove ) ) {
+					$ret[] = $startMove . ".";
+				}
+				$ret[] = str_replace( "..", "", $move["m"] );
+			}
+			if ( !empty( $move["comment"] ) ) {
+				$ret[] = '{' . $move["comment"] . "}";
+			}
 
-    private function getStartMove($game)
-    {
-        if (empty($game["fen"])) return 1;
-        $tokens = explode(" ", $game["fen"]);
-        $ret = array_pop($tokens);
-        if ($tokens[1] == "b") $ret += .5;
-        return $ret;
+			if ( !empty( $move["variations"] ) ) {
+				foreach ( $move["variations"] as $variation ) {
+					if ( !empty( $variation ) ) {
+						$ret[] = "(" . $this->movesToPgn( $variation, $startMove );
+					}
+				}
+			}
+			if ( !empty( $move["m"] ) ) {
+				$startMove += 0.5;
+			}
+		}
 
-    }
-
-    private function movesToPgn($moves, $startMove)
-    {
-        $ret = array();
-
-        if ($startMove != floor($startMove)) {
-            $ret[] = floor($startMove) . "...";
-        }
-
-        foreach ($moves as $move) {
-            if(!empty($move["m"])){
-                if ($startMove == floor($startMove)) {
-                    $ret[] = $startMove . ".";
-                }
-                $ret[] = str_replace("..", "", $move["m"]);
-            }
-            if (!empty($move["comment"])) {
-                $ret[] = '{' . $move["comment"] . "}";
-            }
-
-            if(!empty($move["variations"])){
-                foreach($move["variations"] as $variation){
-                    if(!empty($variation)){
-                        $ret[] = "(" . $this->movesToPgn($variation, $startMove);
-                    }
-                }
-            }
-            if(!empty($move["m"])) {
-                $startMove += .5;
-            }
-        }
-
-        return implode(" ", $ret);
-
-    }
+		return implode( " ", $ret );
+	}
 }
